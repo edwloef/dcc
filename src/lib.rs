@@ -89,7 +89,7 @@ impl Default for DccParams {
 impl Plugin for Dcc {
     const NAME: &'static str = "DCC";
     const VENDOR: &'static str = "edwloef";
-    const URL: &'static str = "https://github.com/edwlof/dcc";
+    const URL: &'static str = "https://github.com/edwloef/dcc";
     const EMAIL: &'static str = "edwin.frank.loeffler@gmail.com";
 
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
