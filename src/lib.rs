@@ -126,25 +126,16 @@ impl Plugin for Dcc {
         for channel_samples in buffer.iter_samples() {
             let pregain = self.params.pregain.smoothed.next();
             let offset = self.params.offset.smoothed.next();
-            let skew = self.params.skew.smoothed.next();
+            let mut skew = self.params.skew.smoothed.next();
             let postgain = self.params.postgain.smoothed.next();
 
-            let mut last = false;
-
             for sample in channel_samples {
-                if last {
-                    *sample = (((*sample).mul_add(pregain, offset + skew).clamp(-1.0, 1.0)
-                        - (offset + skew))
-                        * postgain)
-                        .clamp(-1.0, 1.0);
-                } else {
-                    *sample = (((*sample).mul_add(pregain, offset - skew).clamp(-1.0, 1.0)
-                        - (offset - skew))
-                        * postgain)
-                        .clamp(-1.0, 1.0);
-                }
+                *sample = (((*sample).mul_add(pregain, offset - skew).clamp(-1.0, 1.0)
+                    - (offset - skew))
+                    * postgain)
+                    .clamp(-1.0, 1.0);
 
-                last ^= true;
+                skew = -skew;
             }
         }
 
