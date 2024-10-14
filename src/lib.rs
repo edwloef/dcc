@@ -131,7 +131,7 @@ impl Plugin for Dcc {
 
             for sample in channel_samples {
                 *sample = (((*sample).mul_add(pregain, offset - skew).clamp(-1.0, 1.0)
-                    - (offset - skew))
+                    - (offset - skew).clamp(-1.0, 1.0))
                     * postgain)
                     .clamp(-1.0, 1.0);
 
