@@ -1,7 +1,7 @@
 [package]
 name = "dcc"
 version = "0.1.3"
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0-only"
 
 [workspace]
@@ -11,9 +11,7 @@ members = ["xtask"]
 crate-type = ["cdylib"]
 
 [dependencies]
-nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = [
-    "assert_process_allocs",
-] }
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git" }
 nih_plug_iced = { git = "https://github.com/robbert-vdh/nih-plug.git" }
 
 [profile.release]

@@ -1,21 +1,18 @@
-use nih_plug::prelude::*;
+use nih_plug::{
+    formatters::{s2v_f32_gain_to_db, v2s_f32_gain_to_db},
+    prelude::*,
+    util::db_to_gain,
+};
 use nih_plug_iced::{
-    create_iced_editor, executor, widgets, Alignment, Column, Command, Debug, Element, IcedEditor,
-    IcedState, Length, Text, WindowQueue,
+    Alignment, Column, Command, Element, IcedEditor, IcedState, Length, Text, WindowQueue,
+    create_iced_editor, executor,
+    widgets::{ParamMessage, ParamSlider, param_slider},
 };
 use std::sync::Arc;
-use widgets::ParamMessage;
 
+#[derive(Default)]
 struct Dcc {
     params: Arc<DccParams>,
-}
-
-impl Default for Dcc {
-    fn default() -> Self {
-        Self {
-            params: Arc::new(DccParams::default()),
-        }
-    }
 }
 
 #[derive(Params)]
@@ -35,20 +32,20 @@ struct DccParams {
 impl Default for DccParams {
     fn default() -> Self {
         Self {
-            editor_state: default_state(),
+            editor_state: IcedState::from_size(200, 250),
             pregain: FloatParam::new(
                 "Pre-Gain",
-                util::db_to_gain(0.0),
+                db_to_gain(0.0),
                 FloatRange::Skewed {
-                    min: util::db_to_gain(-12.0),
-                    max: util::db_to_gain(12.0),
+                    min: db_to_gain(-12.0),
+                    max: db_to_gain(12.0),
                     factor: FloatRange::gain_skew_factor(-12.0, 12.0),
                 },
             )
             .with_smoother(SmoothingStyle::Logarithmic(50.0))
             .with_unit("dB")
-            .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
-            .with_string_to_value(formatters::s2v_f32_gain_to_db()),
+            .with_value_to_string(v2s_f32_gain_to_db(2))
+            .with_string_to_value(s2v_f32_gain_to_db()),
             offset: FloatParam::new(
                 "Offset",
                 0.0,
@@ -71,17 +68,17 @@ impl Default for DccParams {
             .with_step_size(0.01),
             postgain: FloatParam::new(
                 "Post-Gain",
-                util::db_to_gain(0.0),
+                db_to_gain(0.0),
                 FloatRange::Skewed {
-                    min: util::db_to_gain(-12.0),
-                    max: util::db_to_gain(12.0),
+                    min: db_to_gain(-12.0),
+                    max: db_to_gain(12.0),
                     factor: FloatRange::gain_skew_factor(-12.0, 12.0),
                 },
             )
             .with_smoother(SmoothingStyle::Logarithmic(50.0))
             .with_unit("dB")
-            .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
-            .with_string_to_value(formatters::s2v_f32_gain_to_db()),
+            .with_value_to_string(v2s_f32_gain_to_db(2))
+            .with_string_to_value(s2v_f32_gain_to_db()),
         }
     }
 }
@@ -114,7 +111,7 @@ impl Plugin for Dcc {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        create(self.params.clone(), self.params.editor_state.clone())
+        create_iced_editor::<DccEditor>(self.params.editor_state.clone(), self.params.clone())
     }
 
     fn process(
@@ -143,32 +140,19 @@ impl Plugin for Dcc {
     }
 }
 
-fn default_state() -> Arc<IcedState> {
-    IcedState::from_size(200, 250)
-}
-
-fn create(params: Arc<DccParams>, editor_state: Arc<IcedState>) -> Option<Box<dyn Editor>> {
-    create_iced_editor::<DccEditor>(editor_state, params)
-}
-
 struct DccEditor {
     params: Arc<DccParams>,
     context: Arc<dyn GuiContext>,
 
-    pregain_slider_state: widgets::param_slider::State,
-    offset_slider_state: widgets::param_slider::State,
-    skew_slider_state: widgets::param_slider::State,
-    postgain_slider_state: widgets::param_slider::State,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum DccMessage {
-    ParamUpdate(ParamMessage),
+    pregain: param_slider::State,
+    offset: param_slider::State,
+    skew: param_slider::State,
+    postgain: param_slider::State,
 }
 
 impl IcedEditor for DccEditor {
     type Executor = executor::Default;
-    type Message = DccMessage;
+    type Message = ParamMessage;
     type InitializationFlags = Arc<DccParams>;
 
     fn new(
@@ -178,17 +162,18 @@ impl IcedEditor for DccEditor {
         let editor = Self {
             params,
             context,
-            pregain_slider_state: widgets::param_slider::State::default(),
-            offset_slider_state: widgets::param_slider::State::default(),
-            skew_slider_state: widgets::param_slider::State::default(),
-            postgain_slider_state: widgets::param_slider::State::default(),
+
+            pregain: param_slider::State::default(),
+            offset: param_slider::State::default(),
+            skew: param_slider::State::default(),
+            postgain: param_slider::State::default(),
         };
 
         (editor, Command::none())
     }
 
     fn context(&self) -> &dyn GuiContext {
-        self.context.as_ref()
+        &*self.context
     }
 
     fn update(
@@ -196,9 +181,7 @@ impl IcedEditor for DccEditor {
         _window: &mut WindowQueue,
         message: Self::Message,
     ) -> Command<Self::Message> {
-        match message {
-            DccMessage::ParamUpdate(param_message) => self.handle_param_message(param_message),
-        }
+        self.handle_param_message(message);
 
         Command::none()
     }
@@ -208,12 +191,8 @@ impl IcedEditor for DccEditor {
             .push(
                 Column::new()
                     .push(
-                        widgets::ParamSlider::new(
-                            &mut self.pregain_slider_state,
-                            &self.params.pregain,
-                        )
-                        .width(Length::Fill)
-                        .map(DccMessage::ParamUpdate),
+                        ParamSlider::new(&mut self.pregain, &self.params.pregain)
+                            .width(Length::Fill),
                     )
                     .push(Text::new("Pre-Gain"))
                     .align_items(Alignment::Center),
@@ -221,35 +200,22 @@ impl IcedEditor for DccEditor {
             .push(
                 Column::new()
                     .push(
-                        widgets::ParamSlider::new(
-                            &mut self.offset_slider_state,
-                            &self.params.offset,
-                        )
-                        .width(Length::Fill)
-                        .map(DccMessage::ParamUpdate),
+                        ParamSlider::new(&mut self.offset, &self.params.offset).width(Length::Fill),
                     )
                     .push(Text::new("Offset"))
                     .align_items(Alignment::Center),
             )
             .push(
                 Column::new()
-                    .push(
-                        widgets::ParamSlider::new(&mut self.skew_slider_state, &self.params.skew)
-                            .width(Length::Fill)
-                            .map(DccMessage::ParamUpdate),
-                    )
+                    .push(ParamSlider::new(&mut self.skew, &self.params.skew).width(Length::Fill))
                     .push(Text::new("Skew"))
                     .align_items(Alignment::Center),
             )
             .push(
                 Column::new()
                     .push(
-                        widgets::ParamSlider::new(
-                            &mut self.postgain_slider_state,
-                            &self.params.postgain,
-                        )
-                        .width(Length::Fill)
-                        .map(DccMessage::ParamUpdate),
+                        ParamSlider::new(&mut self.postgain, &self.params.postgain)
+                            .width(Length::Fill),
                     )
                     .push(Text::new("Post-Gain"))
                     .align_items(Alignment::Center),
